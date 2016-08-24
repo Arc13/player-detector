@@ -27,6 +27,7 @@ end
 
 local tPlayers = {}
 local tOldPlayers = {}
+tInventoryPlayers = {}
 
 if not fs.exists(sLogFile) then
   local file = fs.open(sLogFile, "w")
@@ -36,7 +37,7 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 
-print("Player detector v0.4.2-test")
+print("Player detector v0.5.0-master")
 print(string.char(169).." arc13\n")
 
 local function getTableDifference(oldTable, newTable)
@@ -44,7 +45,7 @@ local function getTableDifference(oldTable, newTable)
     return false
   end
 
-  tDifference = {}
+  local tDifference = {}
 
   --[[
 
@@ -65,9 +66,9 @@ local function getTableDifference(oldTable, newTable)
   --]]
 
   for i = 1, #oldTable do
-    isOK = false
+    local isOK = false
 
-    selectedTable = oldTable[i]
+    local selectedTable = oldTable[i]
     --print("J'ai "..selectedTable.." actuellement")
 
     for i = 1, #newTable do
@@ -87,6 +88,16 @@ local function getTableDifference(oldTable, newTable)
   end
 
   return tDifference
+end
+
+local function getInventorySize(tInventory)
+  local i = 0
+
+  for k, v in pairs(tInventory) do
+    i = i + 1
+  end
+
+  return i
 end
 
 local function getPlayers(range, x, y, z)
@@ -112,6 +123,13 @@ local function logJoin(sPlayerJoined)
 
   file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerJoined.." join")
   file.close()
+
+  tInventoryPlayers[sPlayerJoined] = {inventory = {}}
+  tInventoryPlayers[sPlayerJoined]["inventorySize"] = getInventorySize(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory)
+
+  for k, v in pairs(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory) do
+    table.insert(tInventoryPlayers[sPlayerJoined]["inventory"], v.name)
+  end
 end
 
 local function logLeft(sPlayerLeft)
@@ -119,6 +137,45 @@ local function logLeft(sPlayerLeft)
   local file = fs.open(sLogFile, "a")
 
   file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerLeft.." left")
+
+  if tInventoryPlayers[sPlayerLeft]["inventorySize"] ~= getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) then
+    print("Inventory has changed ! ("..getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory).." items now, "..tInventoryPlayers[sPlayerLeft]["inventorySize"].." before)")
+
+    local tCurrentInventory = {}
+
+    for k, v in pairs(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) do
+      table.insert(tCurrentInventory, v.name)
+    end
+
+    if getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) > tInventoryPlayers[sPlayerLeft]["inventorySize"] then
+      -- Un/plusieurs item(s) à/ont été(s) ajouté(s)
+      local tDifference = getTableDifference(tCurrentInventory, tInventoryPlayers[sPlayerLeft]["inventory"])
+
+      file.writeLine("Inventory has changed (+) : ")
+
+      file.write("/")
+
+      for i = 1, #tDifference do
+        file.write(tDifference[i].."/")
+      end
+
+      file.write("\n")
+    elseif getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) < tInventoryPlayers[sPlayerLeft]["inventorySize"] then
+      -- Un/plusieurs item(s) à/ont été(s) enlevée(s)
+      local tDifference = getTableDifference(tInventoryPlayers[sPlayerLeft]["inventory"], tCurrentInventory)
+
+      file.writeLine("Inventory has changed (-) : ")
+
+      file.write("/")
+
+      for i = 1, #tDifference do
+        file.write(tDifference[i].."/")
+      end
+
+      file.write("\n")
+    end
+  end
+
   file.close()
 end
 
