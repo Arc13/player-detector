@@ -8,6 +8,12 @@ local nZ = 424
 
 -- Fin des variables à modifier
 
+if not fs.exists("date") then
+  shelL.run("pastebin get 8GiE70cH date")
+end
+
+os.loadAPI("date")
+
 local t = peripheral.find("EntityDetector")
 local p = peripheral.find("WorldInterface")
 
@@ -30,7 +36,7 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 
-print("Player detector v0.4.1-master")
+print("Player detector v0.4.2-test")
 print(string.char(169).." arc13\n")
 
 local function getTableDifference(oldTable, newTable)
@@ -104,7 +110,7 @@ local function logJoin(sPlayerJoined)
   print(sPlayerJoined.." join")
   local file = fs.open(sLogFile, "a")
 
-  file.writeLine("["..p.getRealDate().."] "..sPlayerJoined.." join")
+  file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerJoined.." join")
   file.close()
 end
 
@@ -112,7 +118,7 @@ local function logLeft(sPlayerLeft)
   print(sPlayerLeft.." left")
   local file = fs.open(sLogFile, "a")
 
-  file.writeLine("["..p.getRealDate().."] "..sPlayerLeft.." left")
+  file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerLeft.." left")
   file.close()
 end
 
