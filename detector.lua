@@ -1,7 +1,7 @@
 -- Variables à modifier
 
 local sLogFile = "probe.log"
-local nRange = 20
+local nRange = 1
 local nX = -211
 local nY = 75
 local nZ = 424
@@ -9,19 +9,18 @@ local nZ = 424
 -- Fin des variables à modifier
 
 local t = peripheral.find("EntityDetector")
+local p = peripheral.find("WorldInterface")
 
 if not t then
   error("No EntityDetector found !")
 end
 
-local tPlayers = {}
-local tOldPlayers = {}
-
-if not fs.exists("time") then
-  shell.run("pastebin get 6nArsPfK time")
+if not p then
+  error("No WorldInterface found !")
 end
 
-os.loadAPI("time")
+local tPlayers = {}
+local tOldPlayers = {}
 
 if not fs.exists(sLogFile) then
   local file = fs.open(sLogFile, "w")
@@ -31,7 +30,7 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 
-print("Player detector v0.3.2")
+print("Player detector v0.4.1-master")
 print(string.char(169).." arc13\n")
 
 local function getTableDifference(oldTable, newTable)
@@ -102,17 +101,35 @@ local function getPlayers(range, x, y, z)
 end
 
 local function logJoin(sPlayerJoined)
-  local file = fs.open(sLogFile, "a")
-  file.writeLine("["..time.getRealCompleteDate().." "..time.getRealComplete().."] "..sPlayerJoined.." join")
-  file.close()
   print(sPlayerJoined.." join")
+  local file = fs.open(sLogFile, "a")
+
+  file.writeLine("["..p.getRealDate().."] "..sPlayerJoined.." join")
+  file.close()
 end
 
 local function logLeft(sPlayerLeft)
-  local file = fs.open(sLogFile, "a")
-  file.writeLine("["..time.getRealCompleteDate().." "..time.getRealComplete().."] "..sPlayerLeft.." left")
-  file.close()
   print(sPlayerLeft.." left")
+  local file = fs.open(sLogFile, "a")
+
+  file.writeLine("["..p.getRealDate().."] "..sPlayerLeft.." left")
+  file.close()
+end
+
+local function playerJoin(tPlayers, tOldPlayers)
+  local tDifference = getTableDifference(tPlayers, tOldPlayers)
+
+  for i = 1, #tDifference do
+    logJoin(tDifference[i])
+  end
+end
+
+local function playerLeft(tPlayers, tOldPlayers)
+  local tDifference = getTableDifference(tOldPlayers, tPlayers)
+
+  for i = 1, #tDifference do
+    logLeft(tDifference[i])
+  end
 end
 
 local function main()
@@ -121,38 +138,22 @@ local function main()
     tPlayers = getPlayers(nRange, nX, nY, nZ)
 
     if #tPlayers ~= #tOldPlayers then
-      print(#tPlayers.." players")
+      print(#tPlayers.." players ("..#tOldPlayers.." before)")
       if #tPlayers > #tOldPlayers then
         os.queueEvent("player_join", tPlayers, tOldPlayers)
+
+        threadJoin = coroutine.create(playerJoin)
+        coroutine.resume(threadJoin, tPlayers, tOldPlayers)
       elseif #tPlayers < #tOldPlayers then
         os.queueEvent("player_left", tPlayers, tOldPlayers)
+
+        threadLeft = coroutine.create(playerLeft)
+        coroutine.resume(threadLeft, tPlayers, tOldPlayers)
       end
     end
 
-    sleep(1)
+    sleep(0.1)
   end
 end
 
-local function playerHandler()
-  while true do
-    bState = false
-
-    local event, tPlayers, tOldPlayers = os.pullEvent()
-
-    if event == "player_join" then
-      local tDifference = getTableDifference(tPlayers, tOldPlayers)
-
-      for i = 1, #tDifference do
-        logJoin(tDifference[i])
-      end
-    elseif event == "player_left" then
-      local tDifference = getTableDifference(tOldPlayers, tPlayers)
-
-      for i = 1, #tDifference do
-        logLeft(tDifference[i])
-      end
-    end
-  end
-end
-
-parallel.waitForAll(main, playerHandler)
+parallel.waitForAll(main)
