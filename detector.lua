@@ -1,7 +1,7 @@
 -- Variables à modifier
 
 local sLogFile = "probe.log"
-local nRange = 20
+local nRange = 6
 local nX = -211
 local nY = 75
 local nZ = 424
