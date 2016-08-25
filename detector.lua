@@ -1,20 +1,44 @@
-local sVersion = "v0.6.1-master"
+local sVersion = "v0.7.0-master"
 
 -- Variables à modifier
 
 local sLogFile = "probe.log"
-local nRange = 1
+local nRange = 16
 local nX = -211
-local nY = 75
+local nY = 74
 local nZ = 424
 
 local useChatInterface = true
+local printLog = true
+local disableTerminateEvent = false
+
+--[[
+Liste des variables pour les messages du chat :
+
+#p : Nom du joueur qui entre/sort
+#M : Minute réelle
+#h : Heure réelle
+#d : Jour réel
+#m : Mois réel
+#y : Année réelle
+--]]
+
 local joinMessage = "#p joined"
 local leftMessage = "#p left"
 local chatTo = {"arc13"}
-local chatName = "Player Probe "..sVersion
+local chatName = "Player Probe "..sVersion.." on "..os.computerID()
+local canUseCommands = {"arc13"}
+
+local tWhitelist = {}
 
 -- Fin des variables à modifier
+
+local bRun = true
+
+if disableTerminateEvent == true then
+  local oldPullEvent = os.pullEvent
+  os.pullEvent = os.pullEventRaw
+end
 
 if not fs.exists("date") then
   shelL.run("pastebin get 8GiE70cH date")
@@ -72,6 +96,23 @@ term.setCursorPos(1, 1)
 
 print("Player detector "..sVersion)
 print(string.char(169).." arc13\n")
+print("Listening @ "..nX..", "..nY..", "..nZ.." with a radius of "..nRange.." ("..p.getBlockInfos(nX, nY, nZ)["blockName"].." in a "..p.getBiome(nX, nY, nZ)..")\n")
+
+if not printLog then
+  print("Log here is disabled !")
+end
+
+local function isInWhitelist(sPlayerName)
+  for i = 1, #tWhitelist do
+    if sPlayerName == tWhitelist[i] then
+      --c.sendPlayerMessage("arc13", "whitelisted")
+      return true
+    end
+  end
+
+  --c.sendPlayerMessage("arc13", "not whitelisted")
+  return false
+end
 
 local function getTableDifference(oldTable, newTable)
   if not newTable then
@@ -151,7 +192,10 @@ local function getPlayers(range, x, y, z)
 end
 
 local function logJoin(sPlayerJoined)
-  print(sPlayerJoined.." join")
+  if printLog then
+    print(sPlayerJoined.." join")
+  end
+
   local file = fs.open(sLogFile, "a")
 
   file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerJoined.." join")
@@ -167,13 +211,21 @@ local function logJoin(sPlayerJoined)
   if useChatInterface == true and chatInterfaceConnected == true then
     for i = 1, #chatTo do
       local sMsg = string.gsub(joinMessage, "#p", sPlayerJoined)
+      sMsg = sMsg:gsub("#M", date.formatDateTime("%M"))
+      sMsg = sMsg:gsub("#h", date.formatDateTime("%h"))
+      sMsg = sMsg:gsub("#d", date.formatDateTime("%d"))
+      sMsg = sMsg:gsub("#m", date.formatDateTime("%m"))
+      sMsg = sMsg:gsub("#y", date.formatDateTime("%y"))
       c.sendPlayerMessage(chatTo[i], sMsg)
     end
   end
 end
 
 local function logLeft(sPlayerLeft)
-  print(sPlayerLeft.." left")
+  if printLog then
+    print(sPlayerLeft.." left")
+  end
+
   local file = fs.open(sLogFile, "a")
 
   file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerLeft.." left")
@@ -221,6 +273,11 @@ local function logLeft(sPlayerLeft)
   if useChatInterface == true and chatInterfaceConnected == true then
     for i = 1, #chatTo do
       local sMsg = string.gsub(leftMessage, "#p", sPlayerLeft)
+      sMsg = sMsg:gsub("#M", date.formatDateTime("%M"))
+      sMsg = sMsg:gsub("#h", date.formatDateTime("%h"))
+      sMsg = sMsg:gsub("#d", date.formatDateTime("%d"))
+      sMsg = sMsg:gsub("#m", date.formatDateTime("%m"))
+      sMsg = sMsg:gsub("#y", date.formatDateTime("%y"))
       c.sendPlayerMessage(chatTo[i], sMsg)
     end
   end
@@ -230,7 +287,13 @@ local function playerJoin(tPlayers, tOldPlayers)
   local tDifference = getTableDifference(tPlayers, tOldPlayers)
 
   for i = 1, #tDifference do
-    logJoin(tDifference[i])
+    if not isInWhitelist(tDifference[i]) then
+      logJoin(tDifference[i])
+    else
+      if printLog then
+        print("Whitelisted : "..tDifference[i])
+      end
+    end
   end
 end
 
@@ -238,17 +301,25 @@ local function playerLeft(tPlayers, tOldPlayers)
   local tDifference = getTableDifference(tOldPlayers, tPlayers)
 
   for i = 1, #tDifference do
-    logLeft(tDifference[i])
+    if not isInWhitelist(tDifference[i]) then
+      logLeft(tDifference[i])
+    else
+      if printLog then
+        print("Whitelisted : "..tDifference[i])
+      end
+    end
   end
 end
 
 local function main()
-  while true do
+  while bRun do
     tOldPlayers = tPlayers
     tPlayers = getPlayers(nRange, nX, nY, nZ)
 
     if #tPlayers ~= #tOldPlayers then
-      print(#tPlayers.." players ("..#tOldPlayers.." before)")
+      if printLog then
+        print(#tPlayers.." players ("..#tOldPlayers.." before)")
+      end
       if #tPlayers > #tOldPlayers then
         os.queueEvent("player_join", tPlayers, tOldPlayers)
 
@@ -268,7 +339,7 @@ end
 
 -- Unitilisable avant que les events soit fixés
 local function peripheralHandler()
-  while true do
+  while bRun do
     local sEvent, sSide = os.pullEvent()
 
     if sEvent == "peripheral" or sEvent == "peripheral_detach" then
@@ -281,24 +352,64 @@ local function peripheralHandler()
     if sEvent == "peripheral" then
       if peripheral.getType(sSide) == "ChatInterface" then
         chatInterfaceConnected = true
-        print("ChatInterface connected")
+        print("[SYSTEM] ChatInterface connected")
         cSide = sSide
       end
     elseif sEvent == "peripheral_detach" then
       if sSide == pSide then
         -- Le world interface à été détaché
-        error("WorldInterface disconnected")
+        error("[SYSTEM] WorldInterface disconnected")
       elseif sSide == tSide then
         -- L'entity detector à été détaché
-        error("EntityDetector disconnected")
+        error("[SYSTEM] EntityDetector disconnected")
       elseif sSide == cSide then
         -- Le chat interface à été détaché
         chatInterfaceConnected = false
         cSide = ""
-        print("ChatInterface disconnected")
+        print("[SYSTEM] ChatInterface disconnected")
       end
     end
   end
 end
 
-parallel.waitForAll(main)
+local function chatHandler()
+  while bRun do
+    local sEvent, sPlayer, sMessage = os.pullEvent("chat_message")
+
+    for i = 1, #canUseCommands do
+      if sPlayer == canUseCommands[i] then
+        if sMessage == "##disable_chat" then
+          useChatInterface = false
+          c.sendPlayerMessage(sPlayer, "Chat disabled !")
+        elseif sMessage == "##enable_chat" then
+          useChatInterface = true
+          c.sendPlayerMessage(sPlayer, "Chat enabled !")
+        elseif sMessage == "##stop" then
+          c.sendPlayerMessage(sPlayer, "Terminated")
+          os.pullEvent = oldPullEvent
+          bRun = false
+        elseif sMessage == "##get_players" then
+          local tPlayersToSend = getPlayers(nRange, nX, nY, nZ)
+
+          local sMsgToSend = ""
+
+          if #tPlayersToSend == 0 then
+            c.sendPlayerMessage(sPlayer, "No players detected")
+          elseif #tPlayersToSend == 1 then
+            c.sendPlayerMessage(sPlayer, "Player : "..tPlayersToSend[1])
+          else
+            for i = 1, #tPlayersToSend - 1 do
+              sMsgToSend = sMsgToSend..tPlayersToSend[i]..", "
+            end
+
+            sMsgToSend = sMsgToSend..tPlayersToSend[#tPlayersToSend]
+
+            c.sendPlayerMessage(sPlayer, sMsgToSend)
+          end
+        end
+      end
+    end
+  end
+end
+
+parallel.waitForAny(main, chatHandler)
