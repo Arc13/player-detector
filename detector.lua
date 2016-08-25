@@ -25,9 +25,9 @@ Liste des variables pour les messages du chat :
 
 local joinMessage = "#p joined"
 local leftMessage = "#p left"
-local chatTo = {"arc13"}
+local chatTo = {"votre_pseudo"}
 local chatName = "Player Probe "..sVersion.." on "..os.computerID()
-local canUseCommands = {"arc13"}
+local canUseCommands = {"votre_pseudo"}
 
 local tWhitelist = {}
 
