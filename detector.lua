@@ -1,3 +1,5 @@
+local sVersion = "v0.6.1-master"
+
 -- Variables à modifier
 
 local sLogFile = "probe.log"
@@ -5,6 +7,12 @@ local nRange = 1
 local nX = -211
 local nY = 75
 local nZ = 424
+
+local useChatInterface = true
+local joinMessage = "#p joined"
+local leftMessage = "#p left"
+local chatTo = {"arc13"}
+local chatName = "Player Probe "..sVersion
 
 -- Fin des variables à modifier
 
@@ -16,6 +24,13 @@ os.loadAPI("date")
 
 local t = peripheral.find("EntityDetector")
 local p = peripheral.find("WorldInterface")
+local c = peripheral.find("ChatInterface")
+
+local tSide = ""
+local pSide = ""
+local cSide = ""
+
+local chatInterfaceConnected = true
 
 if not t then
   error("No EntityDetector found !")
@@ -25,9 +40,27 @@ if not p then
   error("No WorldInterface found !")
 end
 
+if not c then
+  chatInterfaceConnected = false
+else
+  c.setName(chatName)
+end
+
+for i = 1, #peripheral.getNames() do
+  local sPeripheralType = peripheral.getType(peripheral.getNames()[i])
+
+  if sPeripheralType == "EntityDetector" then
+    tSide = peripheral.getNames()[i]
+  elseif sPeripheralType == "WorldInterface" then
+    pSide = peripheral.getNames()[i]
+  elseif sPeripheralType == "ChatInterface" then
+    cSide = peripheral.getNames()[i]
+  end
+end
+
 local tPlayers = {}
 local tOldPlayers = {}
-tInventoryPlayers = {}
+local tInventoryPlayers = {}
 
 if not fs.exists(sLogFile) then
   local file = fs.open(sLogFile, "w")
@@ -37,7 +70,7 @@ end
 term.clear()
 term.setCursorPos(1, 1)
 
-print("Player detector v0.5.0-master")
+print("Player detector "..sVersion)
 print(string.char(169).." arc13\n")
 
 local function getTableDifference(oldTable, newTable)
@@ -128,7 +161,14 @@ local function logJoin(sPlayerJoined)
   tInventoryPlayers[sPlayerJoined]["inventorySize"] = getInventorySize(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory)
 
   for k, v in pairs(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory) do
-    table.insert(tInventoryPlayers[sPlayerJoined]["inventory"], v.name)
+    table.insert(tInventoryPlayers[sPlayerJoined]["inventory"], v.displayName)
+  end
+
+  if useChatInterface == true and chatInterfaceConnected == true then
+    for i = 1, #chatTo do
+      local sMsg = string.gsub(joinMessage, "#p", sPlayerJoined)
+      c.sendPlayerMessage(chatTo[i], sMsg)
+    end
   end
 end
 
@@ -144,7 +184,7 @@ local function logLeft(sPlayerLeft)
     local tCurrentInventory = {}
 
     for k, v in pairs(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) do
-      table.insert(tCurrentInventory, v.name)
+      table.insert(tCurrentInventory, v.displayName)
     end
 
     if getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) > tInventoryPlayers[sPlayerLeft]["inventorySize"] then
@@ -177,6 +217,13 @@ local function logLeft(sPlayerLeft)
   end
 
   file.close()
+
+  if useChatInterface == true and chatInterfaceConnected == true then
+    for i = 1, #chatTo do
+      local sMsg = string.gsub(leftMessage, "#p", sPlayerLeft)
+      c.sendPlayerMessage(chatTo[i], sMsg)
+    end
+  end
 end
 
 local function playerJoin(tPlayers, tOldPlayers)
@@ -216,6 +263,41 @@ local function main()
     end
 
     sleep(0.1)
+  end
+end
+
+-- Unitilisable avant que les events soit fixés
+local function peripheralHandler()
+  while true do
+    local sEvent, sSide = os.pullEvent()
+
+    if sEvent == "peripheral" or sEvent == "peripheral_detach" then
+      print(sSide)
+      print(pSide)
+      print(tSide)
+      print(cSide)
+    end
+
+    if sEvent == "peripheral" then
+      if peripheral.getType(sSide) == "ChatInterface" then
+        chatInterfaceConnected = true
+        print("ChatInterface connected")
+        cSide = sSide
+      end
+    elseif sEvent == "peripheral_detach" then
+      if sSide == pSide then
+        -- Le world interface à été détaché
+        error("WorldInterface disconnected")
+      elseif sSide == tSide then
+        -- L'entity detector à été détaché
+        error("EntityDetector disconnected")
+      elseif sSide == cSide then
+        -- Le chat interface à été détaché
+        chatInterfaceConnected = false
+        cSide = ""
+        print("ChatInterface disconnected")
+      end
+    end
   end
 end
 
