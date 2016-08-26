@@ -41,7 +41,7 @@ if disableTerminateEvent == true then
 end
 
 if not fs.exists("date") then
-  shelL.run("pastebin get 8GiE70cH date")
+  shell.run("pastebin get 8GiE70cH date")
 end
 
 os.loadAPI("date")
