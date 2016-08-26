@@ -1,4 +1,5 @@
-local sVersion = "v0.7.0-master"
+local sVersion = "v0.7.1-master"
+local nBuild = 71
 
 -- Variables à modifier
 
@@ -41,7 +42,7 @@ if disableTerminateEvent == true then
 end
 
 if not fs.exists("date") then
-  shell.run("pastebin get 8GiE70cH date")
+  shelL.run("pastebin get 8GiE70cH date")
 end
 
 os.loadAPI("date")
@@ -100,6 +101,43 @@ print("Listening @ "..nX..", "..nY..", "..nZ.." with a radius of "..nRange.." ("
 
 if not printLog then
   print("Log here is disabled !")
+end
+
+-- Check new version
+
+local sBuildNet = http.get("http://pastebin.com/raw/ZD8t8ZSK")
+local nBuildNet = tonumber(sBuildNet.readAll())
+sBuildNet.close()
+
+if nBuildNet > nBuild then
+  print("A new version is available ! (build "..nBuildNet..")")
+  --print("I'm running "..shell.getRunningProgram())
+  print("Downloading new version...")
+
+  local sNewSoftware = http.get("http://pastebin.com/raw/7Jg670Ra")
+
+  local sTempFile = fs.open(".temp", "w")
+  sTempFile.write(sNewSoftware.readAll())
+  sTempFile.close()
+
+  sNewSoftware.close()
+
+  if fs.exists(".temp") then
+    print("Downloaded succesfully, updating...")
+    fs.delete(shell.getRunningProgram())
+    fs.move(".temp", shell.getRunningProgram())
+    fs.delete(".temp")
+    write("Rebooting")
+    write(".")
+    sleep(1)
+    write(".")
+    sleep(1)
+    write(".")
+    sleep(1)
+    os.reboot()
+  else
+    print("Download fail...")
+  end
 end
 
 local function isInWhitelist(sPlayerName)
