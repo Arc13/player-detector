@@ -1,7 +1,7 @@
-local sVersion = "v0.7.1-master"
-local nBuild = 71
+local sVersion = "v0.7.3-master"
+local nBuild = 73
 
--- Variables à modifier
+-- Variables par défaut
 
 local sLogFile = "probe.log"
 local nRange = 16
@@ -12,6 +12,7 @@ local nZ = 424
 local useChatInterface = true
 local printLog = true
 local disableTerminateEvent = false
+local disableAutomaticUpdates = false
 
 --[[
 Liste des variables pour les messages du chat :
@@ -26,15 +27,150 @@ Liste des variables pour les messages du chat :
 
 local joinMessage = "#p joined"
 local leftMessage = "#p left"
-local chatTo = {"votre_pseudo"}
+local chatTo = {"your_name"}
 local chatName = "Player Probe "..sVersion.." on "..os.computerID()
-local canUseCommands = {"votre_pseudo"}
+local canUseCommands = {"your_name"}
 
 local tWhitelist = {}
 
--- Fin des variables à modifier
+local joinProgram = ""
+local leftProgram = ""
+
+-- Fin des variables par défaut
+
+-- Init Environment
+
+term.setBackgroundColor(colors.black)
+term.setTextColor(colors.white)
+term.clear()
+term.setCursorPos(1, 1)
+print("Player Detector Init Environment")
+term.setCursorPos(2, 2)
+
+for i = 2, term.getSize() - 1 do
+  write("=")
+end
+
+term.setCursorPos(1, 4)
+
+if not fs.exists("player_detector.conf") then
+  print("\nNo config file found, init setup...")
+  local configFile = fs.open("player_detector.conf", "w")
+  configFile.write("{\nLogFile = \"probe.log\", \nnRange = 16, \nnX = -211, \nnY = 74, \nnZ = 424, \nuseChatInterface = true, \nprintLog = true, \ndisableTerminateEvent = false, \ndisableAutomaticUpdates = false, \njoinMessage = \"#p joined\", \nleftMessage = \"#p left\", \nchatTo = {\"your_name\"}, \nchatName = \"".."Player Probe on "..os.computerID().."\", \ncanUseCommands = {\"your_name\"}, \ntWhitelist = {}, \njoinProgram = \"\", \nleftProgram = \"\", \n}")
+  configFile.close()
+  print("\nFile created, a text editor will be prompt to edit settings, please save before quit the editor.")
+  print("Press any key to continue...")
+  os.pullEvent("key")
+
+  shell.run("edit player_detector.conf")
+
+  term.setBackgroundColor(colors.black)
+  term.setTextColor(colors.white)
+  term.clear()
+  term.setCursorPos(1, 1)
+  print("Player Detector Init Environment")
+  term.setCursorPos(2, 2)
+
+  for i = 2, term.getSize() - 1 do
+    write("=")
+  end
+
+  term.setCursorPos(1, 4)
+else
+  print("\nConfig file found")
+end
+
+print("Loading settings...")
+settings.load("player_detector.conf")
+
+sLogFile = settings.get("LogFile", sLogFile)
+nRange = settings.get("nRange", nRange)
+nX = settings.get("nX", nX)
+nY = settings.get("nY", nY)
+nZ = settings.get("nZ", nZ)
+useChatInterface = settings.get("useChatInterface", useChatInterface)
+printLog = settings.get("printLog", printLog)
+disableTerminateEvent = settings.get("disableTerminateEvent", disableTerminateEvent)
+disableAutomaticUpdates = settings.get("disableAutomaticUpdates", disableAutomaticUpdates)
+joinMessage = settings.get("joinMessage", joinMessage)
+leftMessage = settings.get("leftMessage", leftMessage)
+chatTo = settings.get("chatTo", chatTo)
+chatName = settings.get("chatName", chatName)
+canUseCommands = settings.get("canUseCommands", canUseCommands)
+tWhitelist = settings.get("tWhitelist", tWhitelist)
+joinProgram = settings.get("joinProgram", joinProgram)
+leftProgram = settings.get("leftProgram", leftProgram)
+
+-- Check new version
+
+if not disableAutomaticUpdates then
+  print("\nChecking for updates...")
+
+  local sBuildNet = http.get("http://pastebin.com/raw/ZD8t8ZSK")
+  local nBuildNet = tonumber(sBuildNet.readAll())
+  sBuildNet.close()
+
+  if nBuildNet > nBuild then
+    print("A new version is available ! (build "..nBuildNet..")")
+      --print("I'm running "..shell.getRunningProgram())
+      print("Downloading new version...")
+
+      local sNewSoftware = http.get("http://pastebin.com/raw/7Jg670Ra")
+
+      local sTempFile = fs.open(".temp", "w")
+      sTempFile.write(sNewSoftware.readAll())
+      sTempFile.close()
+
+      sNewSoftware.close()
+
+      if fs.exists(".temp") then
+        print("Downloaded succesfully, updating...")
+        fs.delete(shell.getRunningProgram())
+        fs.move(".temp", shell.getRunningProgram())
+        fs.delete(".temp")
+        write("Rebooting")
+      write(".")
+      sleep(1)
+      write(".")
+      sleep(1)
+      write(".")
+      sleep(1)
+      os.reboot()
+    else
+      print("Download fail...")
+    end
+  else
+    print("You are on the latest version")
+  end
+else
+  print("\nAutomatics updates are disabled.")
+end
+
+print("\n")
+
+if nRange > 20 then
+  printError("[WARN] Range is out of bound ("..nRange..")")
+  nRange = 20
+
+  for i = 1, 5 do
+    write(".")
+    sleep(1)
+  end
+elseif nRange < 1 then
+  printError("[WARN] Range is out of bound ("..nRange..")")
+  nRange = 1
+
+  for i = 1, 5 do
+    write(".")
+    sleep(1)
+  end
+end
+
+-- End Init Environment
 
 local bRun = true
+
+local monX, monY = term.getSize()
 
 if disableTerminateEvent == true then
   local oldPullEvent = os.pullEvent
@@ -42,7 +178,7 @@ if disableTerminateEvent == true then
 end
 
 if not fs.exists("date") then
-  shelL.run("pastebin get 8GiE70cH date")
+  shell.run("pastebin get 8GiE70cH date")
 end
 
 os.loadAPI("date")
@@ -96,48 +232,22 @@ term.clear()
 term.setCursorPos(1, 1)
 
 print("Player detector "..sVersion)
-print(string.char(169).." arc13\n")
-print("Listening @ "..nX..", "..nY..", "..nZ.." with a radius of "..nRange.." ("..p.getBlockInfos(nX, nY, nZ)["blockName"].." in a "..p.getBiome(nX, nY, nZ)..")\n")
+term.setCursorPos(monX - string.len(string.char(169).." arc13") + 1, 1)
+term.write(string.char(169).." arc13")
+term.setCursorPos(1, 3)
+print("Listening at "..nX..", "..nY..", "..nZ.." (radius "..nRange..")")
+print(p.getBlockInfos(nX, nY, nZ)["blockName"]..", "..p.getBiome(nX, nY, nZ).." biome")
+
+term.setCursorPos(2, 5)
+
+for i = 2, term.getSize() - 1 do
+  write("=")
+end
+
+print("\n")
 
 if not printLog then
   print("Log here is disabled !")
-end
-
--- Check new version
-
-local sBuildNet = http.get("http://pastebin.com/raw/ZD8t8ZSK")
-local nBuildNet = tonumber(sBuildNet.readAll())
-sBuildNet.close()
-
-if nBuildNet > nBuild then
-  print("A new version is available ! (build "..nBuildNet..")")
-  --print("I'm running "..shell.getRunningProgram())
-  print("Downloading new version...")
-
-  local sNewSoftware = http.get("http://pastebin.com/raw/7Jg670Ra")
-
-  local sTempFile = fs.open(".temp", "w")
-  sTempFile.write(sNewSoftware.readAll())
-  sTempFile.close()
-
-  sNewSoftware.close()
-
-  if fs.exists(".temp") then
-    print("Downloaded succesfully, updating...")
-    fs.delete(shell.getRunningProgram())
-    fs.move(".temp", shell.getRunningProgram())
-    fs.delete(".temp")
-    write("Rebooting")
-    write(".")
-    sleep(1)
-    write(".")
-    sleep(1)
-    write(".")
-    sleep(1)
-    os.reboot()
-  else
-    print("Download fail...")
-  end
 end
 
 local function isInWhitelist(sPlayerName)
@@ -324,6 +434,16 @@ end
 local function playerJoin(tPlayers, tOldPlayers)
   local tDifference = getTableDifference(tPlayers, tOldPlayers)
 
+  if joinProgram ~= "" and multishell then
+    local sTempPlayers = ""
+
+    for i = 1, #tDifference do
+      sTempPlayers = sTempPlayers..tDifference[i]..","
+    end
+
+    shell.openTab(joinProgram.." "..sTempPlayers)
+  end
+
   for i = 1, #tDifference do
     if not isInWhitelist(tDifference[i]) then
       logJoin(tDifference[i])
@@ -337,6 +457,16 @@ end
 
 local function playerLeft(tPlayers, tOldPlayers)
   local tDifference = getTableDifference(tOldPlayers, tPlayers)
+
+  if leftProgram ~= "" and multishell then
+    local sTempPlayers = ""
+
+    for i = 1, #tDifference do
+      sTempPlayers = sTempPlayers..tDifference[i]..","
+    end
+
+    shell.openTab(leftProgram.." "..sTempPlayers)
+  end
 
   for i = 1, #tDifference do
     if not isInWhitelist(tDifference[i]) then
@@ -450,4 +580,4 @@ local function chatHandler()
   end
 end
 
-parallel.waitForAny(main, chatHandler)
+parallel.waitForAll(main, chatHandler)
