@@ -1,13 +1,11 @@
-local sVersion = "v0.7.3-master"
-local nBuild = 73
+local sVersion = "v0.9 RC1"
+local nBuild = 90
+local debugMode = false
 
 -- Variables par défaut
 
-local sLogFile = "probe.log"
-local nRange = 16
-local nX = -211
-local nY = 74
-local nZ = 424
+local sLogFormat = "#y#m#d.log"
+local sLogDir = "/playerd_logs/"
 
 local useChatInterface = true
 local printLog = true
@@ -15,14 +13,14 @@ local disableTerminateEvent = false
 local disableAutomaticUpdates = false
 
 --[[
-Liste des variables pour les messages du chat :
+	Liste des variables pour les messages du chat :
 
-#p : Nom du joueur qui entre/sort
-#M : Minute réelle
-#h : Heure réelle
-#d : Jour réel
-#m : Mois réel
-#y : Année réelle
+	#p : Nom du joueur qui entre/sort
+	#M : Minute réelle
+	#h : Heure réelle
+	#d : Jour réel
+	#m : Mois réel
+	#y : Année réelle
 --]]
 
 local joinMessage = "#p joined"
@@ -38,6 +36,60 @@ local leftProgram = ""
 
 -- Fin des variables par défaut
 
+-- Déclaration de la fonction au centre du programme
+
+local function getTableDifference(oldTable, newTable)
+	if not newTable then
+		return false
+	end
+
+	local tDifference = {}
+
+	--[[
+
+		print("oldTable :")
+
+		for i = 1, #oldTable do
+		print(oldTable[i])
+		end
+
+		print("newTable :")
+
+		for i = 1, #newTable do
+		print(newTable[i])
+		end
+
+		print("Différences :")
+
+	--]]
+
+	for i = 1, #oldTable do
+		local isOK = false
+
+		local selectedTable = oldTable[i]
+		--print("J'ai "..selectedTable.." actuellement")
+
+		for i = 1, #newTable do
+			--print("Je compare "..selectedTable.." avec "..newTable[i])
+
+			if selectedTable == newTable[i] then
+				--print("OK")
+				isOK = true
+				break
+			end
+		end
+
+		if isOK == false then
+			--print(selectedTable.." n'est pas dans table2")
+			table.insert(tDifference, selectedTable)
+		end
+	end
+
+	return tDifference
+end
+
+-- Fin de la déclaration
+
 -- Init Environment
 
 term.setBackgroundColor(colors.black)
@@ -45,49 +97,46 @@ term.setTextColor(colors.white)
 term.clear()
 term.setCursorPos(1, 1)
 print("Player Detector Init Environment")
-term.setCursorPos(2, 2)
+term.setCursorPos(1, 2)
 
-for i = 2, term.getSize() - 1 do
-  write("=")
+for i = 1, term.getSize() do
+	write("-")
 end
 
 term.setCursorPos(1, 4)
 
 if not fs.exists("player_detector.conf") then
-  print("\nNo config file found, init setup...")
-  local configFile = fs.open("player_detector.conf", "w")
-  configFile.write("{\nLogFile = \"probe.log\", \nnRange = 16, \nnX = -211, \nnY = 74, \nnZ = 424, \nuseChatInterface = true, \nprintLog = true, \ndisableTerminateEvent = false, \ndisableAutomaticUpdates = false, \njoinMessage = \"#p joined\", \nleftMessage = \"#p left\", \nchatTo = {\"your_name\"}, \nchatName = \"".."Player Probe on "..os.computerID().."\", \ncanUseCommands = {\"your_name\"}, \ntWhitelist = {}, \njoinProgram = \"\", \nleftProgram = \"\", \n}")
-  configFile.close()
-  print("\nFile created, a text editor will be prompt to edit settings, please save before quit the editor.")
-  print("Press any key to continue...")
-  os.pullEvent("key")
+	print("\nNo config file found, init setup...")
+	local configFile = fs.open("player_detector.conf", "w")
+	configFile.write("{\nLogFormat = \"#y#M#d.log\", \nLogDir = \"/playerd_logs/\", \nuseChatInterface = true, \nprintLog = true, \ndisableTerminateEvent = false, \ndisableAutomaticUpdates = false, \njoinMessage = \"#p joined\", \nleftMessage = \"#p left\", \nchatTo = {\"your_name\"}, \nchatName = \"".."Player Probe on "..os.computerID().."\", \ncanUseCommands = {\"your_name\"}, \ntWhitelist = {}, \njoinProgram = \"\", \nleftProgram = \"\", \n}")
+	configFile.close()
+	print("\nFile created, a text editor will be prompt to edit settings, please save before quit the editor.")
+	print("Press any key to continue...")
+	os.pullEvent("key")
 
-  shell.run("edit player_detector.conf")
+	shell.run("edit player_detector.conf")
 
-  term.setBackgroundColor(colors.black)
-  term.setTextColor(colors.white)
-  term.clear()
-  term.setCursorPos(1, 1)
-  print("Player Detector Init Environment")
-  term.setCursorPos(2, 2)
+	term.setBackgroundColor(colors.black)
+	term.setTextColor(colors.white)
+	term.clear()
+	term.setCursorPos(1, 1)
+	print("Player Detector Init Environment")
+	term.setCursorPos(1, 2)
 
-  for i = 2, term.getSize() - 1 do
-    write("=")
-  end
+	for i = 1, term.getSize() do
+		write("-")
+	end
 
-  term.setCursorPos(1, 4)
+	term.setCursorPos(1, 4)
 else
-  print("\nConfig file found")
+	print("\nConfig file found")
 end
 
 print("Loading settings...")
 settings.load("player_detector.conf")
 
-sLogFile = settings.get("LogFile", sLogFile)
-nRange = settings.get("nRange", nRange)
-nX = settings.get("nX", nX)
-nY = settings.get("nY", nY)
-nZ = settings.get("nZ", nZ)
+sLogFormat = settings.get("LogFormat", sLogFormat)
+sLogDir = settings.get("LogDir", sLogDir)
 useChatInterface = settings.get("useChatInterface", useChatInterface)
 printLog = settings.get("printLog", printLog)
 disableTerminateEvent = settings.get("disableTerminateEvent", disableTerminateEvent)
@@ -103,481 +152,856 @@ leftProgram = settings.get("leftProgram", leftProgram)
 
 -- Check new version
 
-if not disableAutomaticUpdates then
-  print("\nChecking for updates...")
+if not disableAutomaticUpdates and http.get("http://pastebin.com/raw/ZD8t8ZSK") then
+	print("\nChecking for updates...")
 
-  local sBuildNet = http.get("http://pastebin.com/raw/ZD8t8ZSK")
-  local nBuildNet = tonumber(sBuildNet.readAll())
-  sBuildNet.close()
+	local sBuildNet = http.get("http://pastebin.com/raw/ZD8t8ZSK")
+	local nBuildNet = tonumber(sBuildNet.readAll())
+	sBuildNet.close()
 
-  if nBuildNet > nBuild then
-    print("A new version is available ! (build "..nBuildNet..")")
-      --print("I'm running "..shell.getRunningProgram())
-      print("Downloading new version...")
+	if nBuildNet > nBuild then
+		print("A new version is available ! (build "..nBuildNet..")")
+		--print("I'm running "..shell.getRunningProgram())
+		print("Downloading new version...")
 
-      local sNewSoftware = http.get("http://pastebin.com/raw/7Jg670Ra")
+		local sNewSoftware = http.get("http://pastebin.com/raw/7Jg670Ra")
 
-      local sTempFile = fs.open(".temp", "w")
-      sTempFile.write(sNewSoftware.readAll())
-      sTempFile.close()
+		local sTempFile = fs.open(".temp", "w")
+		sTempFile.write(sNewSoftware.readAll())
+		sTempFile.close()
 
-      sNewSoftware.close()
+		sNewSoftware.close()
 
-      if fs.exists(".temp") then
-        print("Downloaded succesfully, updating...")
-        fs.delete(shell.getRunningProgram())
-        fs.move(".temp", shell.getRunningProgram())
-        fs.delete(".temp")
-        write("Rebooting")
-      write(".")
-      sleep(1)
-      write(".")
-      sleep(1)
-      write(".")
-      sleep(1)
-      os.reboot()
-    else
-      print("Download fail...")
-    end
-  else
-    print("You are on the latest version")
-  end
+		if fs.exists(".temp") then
+			print("Downloaded succesfully, updating...")
+			fs.delete(shell.getRunningProgram())
+			fs.move(".temp", shell.getRunningProgram())
+			fs.delete(".temp")
+			write("Rebooting")
+			write(".")
+			sleep(1)
+			write(".")
+			sleep(1)
+			write(".")
+			sleep(1)
+			os.reboot()
+		else
+			print("Download fail...")
+		end
+	else
+		print("You are on the latest version")
+	end
+elseif disableAutomaticUpdates then
+	print("\nAutomatics updates are disabled.")
 else
-  print("\nAutomatics updates are disabled.")
+	print("An error has occured, please check your internet connection.")
 end
 
-print("\n")
+print("")
 
-if nRange > 20 then
-  printError("[WARN] Range is out of bound ("..nRange..")")
-  nRange = 20
+print("Checking config file...")
+local tKeyAllowed = {"{", "LogFormat", "LogDir", "useChatInterface", "printLog", "disableTerminateEvent", "disableAutomaticUpdates", "joinMessage", "leftMessage", "chatTo", "chatName", "canUseCommands", "tWhitelist", "joinProgram", "leftProgram", "}"}
+local tPresentKeys = {}
+local tErroredKey = {}
+local tConfigLines = {}
+local sActualLine = ""
+local sScanningLine = ""
+local sScanningKey = ""
+local bScanResult = false
 
-  for i = 1, 5 do
-    write(".")
-    sleep(1)
-  end
-elseif nRange < 1 then
-  printError("[WARN] Range is out of bound ("..nRange..")")
-  nRange = 1
+local configCheck = fs.open("player_detector.conf", "r")
 
-  for i = 1, 5 do
-    write(".")
-    sleep(1)
-  end
+while sActualLine ~= nil do
+	sActualLine = configCheck.readLine()
+	table.insert(tConfigLines, sActualLine)
 end
+
+configCheck.close()
+
+for i = 1, #tConfigLines do
+	sScanningLine = tConfigLines[i]
+	bScanResult = false
+
+	for i = 1, #tKeyAllowed do
+		sScanningKey = sScanningLine:sub(1, #tKeyAllowed[i])
+		if sScanningKey == tKeyAllowed[i] then
+			bScanResult = true
+			break
+		end
+	end
+
+	if bScanResult == false then
+		if not sScanningLine:sub(1, 7) == "LogFile" then
+			table.insert(tErroredKey, "L"..i.." > \""..sScanningLine.."\"")
+		end
+	else
+		table.insert(tPresentKeys, sScanningKey)
+	end
+end
+
+if #tErroredKey > 0 then
+	if #tErroredKey == 1 then
+		printError("Errored key found :")
+	else
+		printError("Errored keys found :")
+	end
+	print("")
+
+	textutils.pagedTabulate(tErroredKey)
+	print("\nPress any key to continue...")
+	os.pullEvent("key")
+else
+	print("No errored key found !")
+end
+
+local tKeyDifference = getTableDifference(tKeyAllowed, tPresentKeys)
+
+if #tKeyDifference > 0 then
+	if #tKeyDifference == 1 then
+		printError("Missing key found :")
+	else
+		printError("Missing keys found :")
+	end
+
+	print("")
+	textutils.pagedTabulate(tKeyDifference)
+	print("")
+
+	print("<          >")
+
+	local nCurX, nCurY = term.getCursorPos()
+	term.setCursorPos(2, nCurY - 1)
+
+	for i = 1, 10 do
+		sleep(1)
+		write("=")
+	end
+
+	sleep(1)
+else
+	print("No missing key found !")
+end
+
+--sleep(5)
 
 -- End Init Environment
 
 local bRun = true
 
 local monX, monY = term.getSize()
+local oldMonX, oldMonY = term.getSize()
+
+local tActualDate = {}
+
+if monX < 29 then
+	printError("Resolution is too low !")
+	sleep(5)
+end
 
 if disableTerminateEvent == true then
-  local oldPullEvent = os.pullEvent
-  os.pullEvent = os.pullEventRaw
+	local oldPullEvent = os.pullEvent
+	os.pullEvent = os.pullEventRaw
 end
 
-if not fs.exists("date") then
-  shell.run("pastebin get 8GiE70cH date")
-end
+--LIP : EntityDetector / OpenCCSensor : sensor
+--LIP : WorldInterface / Peripherals++ : timeSensor
+--LIP : ChatInterface / Peripherals++ : chatBox
 
-os.loadAPI("date")
+local tSensorPeripheral = peripheral.find("sensor")
+local tTimePeripheral = peripheral.find("timeSensor")
+local tChatPeripheral = peripheral.find("chatBox")
 
-local t = peripheral.find("EntityDetector")
-local p = peripheral.find("WorldInterface")
-local c = peripheral.find("ChatInterface")
+local tSensorSide = ""
+local tTimeSide = ""
+local tChatSide = ""
 
-local tSide = ""
-local pSide = ""
-local cSide = ""
+local bScrollEffectDone = false
 
 local chatInterfaceConnected = true
 
-if not t then
-  error("No EntityDetector found !")
+if not tSensorPeripheral then
+	error("No sensor found !")
 end
 
-if not p then
-  error("No WorldInterface found !")
+if tSensorPeripheral.getSensorName() ~= "proximityCard" then
+	error("No proximityCard inserted !")
 end
 
-if not c then
-  chatInterfaceConnected = false
-else
-  c.setName(chatName)
+if not tTimePeripheral then
+	error("No timeSensor found !")
+end
+
+if not tChatPeripheral then
+	chatInterfaceConnected = false
 end
 
 for i = 1, #peripheral.getNames() do
-  local sPeripheralType = peripheral.getType(peripheral.getNames()[i])
+	local sPeripheralType = peripheral.getType(peripheral.getNames()[i])
 
-  if sPeripheralType == "EntityDetector" then
-    tSide = peripheral.getNames()[i]
-  elseif sPeripheralType == "WorldInterface" then
-    pSide = peripheral.getNames()[i]
-  elseif sPeripheralType == "ChatInterface" then
-    cSide = peripheral.getNames()[i]
-  end
+	if sPeripheralType == "sensor" then
+		tSensorSide = peripheral.getNames()[i]
+	elseif sPeripheralType == "timeSensor" then
+		tTimeSide = peripheral.getNames()[i]
+	elseif sPeripheralType == "chatBox" then
+		tChatSide = peripheral.getNames()[i]
+	end
 end
 
 local tPlayers = {}
 local tOldPlayers = {}
-local tInventoryPlayers = {}
 
-if not fs.exists(sLogFile) then
-  local file = fs.open(sLogFile, "w")
-  file.close()
+local tInventoryPlayers = {}
+local tActualInventoryPlayers = {}
+
+if not fs.exists(sLogDir) then
+	fs.makeDir(sLogDir)
 end
 
 term.clear()
 term.setCursorPos(1, 1)
 
-print("Player detector "..sVersion)
-term.setCursorPos(monX - string.len(string.char(169).." arc13") + 1, 1)
-term.write(string.char(169).." arc13")
-term.setCursorPos(1, 3)
-print("Listening at "..nX..", "..nY..", "..nZ.." (radius "..nRange..")")
-print(p.getBlockInfos(nX, nY, nZ)["blockName"]..", "..p.getBiome(nX, nY, nZ).." biome")
+if monX >= 51 then
+	print("Player detector "..sVersion)
+	term.setCursorPos(monX - string.len(string.char(174).." arc13") + 1, 1)
+	term.write(string.char(174).." arc13")
 
-term.setCursorPos(2, 5)
+	if term.isColor() then
+		term.setTextColor(colors.lightGray)
+	end
 
-for i = 2, term.getSize() - 1 do
-  write("=")
+	term.setCursorPos(1, 3)
+	if useChatInterface and chatInterfaceConnected then
+		print("ChatBox enabled")
+	else
+		print("ChatBox disabled")
+	end
+
+	term.setCursorPos(1, 4)
+elseif monX < 51 and monX >= 29 then
+	print("Player detector "..sVersion)
+	term.setCursorPos(monX - string.len(string.char(174).." arc13") + 1, 1)
+	term.write(string.char(174).." arc13")
+	term.setCursorPos(1, 3)
+	if useChatInterface and chatInterfaceConnected then
+		print("ChatBox enabled")
+	else
+		print("ChatBox disabled")
+	end
+
+	term.setCursorPos(1, 4)
 end
+
+if term.isColor() then
+	term.setTextColor(colors.gray)
+end
+
+for i = 1, term.getSize() do
+	write("-")
+end
+
+term.setTextColor(colors.white)
 
 print("\n")
 
 if not printLog then
-  print("Log here is disabled !")
+	print("Log here is disabled !")
+end
+
+local function redrawHeader()
+	local oldCurX, oldCurY = term.getCursorPos()
+
+	term.setCursorPos(1, 1)
+	term.clearLine()
+	print("Player detector "..sVersion)
+	term.setCursorPos(monX - string.len(string.char(174).." arc13") + 1, 1)
+	term.write(string.char(174).." arc13")
+
+	if term.isColor() then
+		term.setTextColor(colors.gray)
+	end
+
+	if bScrollEffectDone == true then
+		term.setCursorPos(1, 2)
+	else
+		if monX >= 51 then
+			term.setCursorPos(1, 4)
+		elseif monX < 51 and monX >= 29 then
+			term.setCursorPos(1, 4)
+		end
+	end
+
+	for i = 1, term.getSize() do
+		write("-")
+	end
+
+	term.setTextColor(colors.white)
+
+	if monX < 29 then
+		term.clear()
+		term.setCursorPos(1, 1)
+		print("Resolution too low !")
+	end
+
+	term.setCursorPos(oldCurX, oldCurY)
+end
+
+local function scrollEffect()
+	sleep(5)
+
+	local oldCurX, oldCurY = term.getCursorPos()
+
+	for i = 1, 1 do
+		term.scroll(1)
+
+		term.setCursorPos(1, 1)
+		print("Player detector "..sVersion)
+		term.setCursorPos(monX - string.len(string.char(174).." arc13") + 1, 1)
+		term.write(string.char(174).." arc13")
+		paintutils.drawLine(1, 2, monX, 2, colors.black)
+
+		if monX < 51 and monX >= 29 and i == 2 then
+			term.setCursorPos(1, 2)
+
+			if term.isColor() then
+				term.setTextColor(colors.gray)
+			end
+
+			for i = 1, term.getSize() do
+				write("-")
+			end
+
+			term.setTextColor(colors.white)
+		end
+
+		sleep(0.2)
+	end
+	term.scroll(1)
+
+	term.setCursorPos(1, 1)
+	print("Player detector "..sVersion)
+	term.setCursorPos(monX - string.len(string.char(174).." arc13") + 1, 1)
+	term.write(string.char(174).." arc13")
+
+	if monX < 51 and monX >= 29 then
+		term.setCursorPos(1, 2)
+
+		if term.isColor() then
+			term.setTextColor(colors.gray)
+		end
+
+		for i = 1, term.getSize() do
+			write("-")
+		end
+
+		term.setTextColor(colors.white)
+	end
+
+	bScrollEffectDone = true
+
+	redrawHeader()
+
+	if monX >= 51 then
+		term.setCursorPos(oldCurX, oldCurY - 3)
+	elseif monX < 51 and monX >= 29 then
+		term.setCursorPos(oldCurX, oldCurY - 2)
+	end
 end
 
 local function isInWhitelist(sPlayerName)
-  for i = 1, #tWhitelist do
-    if sPlayerName == tWhitelist[i] then
-      --c.sendPlayerMessage("arc13", "whitelisted")
-      return true
-    end
-  end
+	for i = 1, #tWhitelist do
+		if sPlayerName == tWhitelist[i] then
+			--tChatPeripheral.tell("arc13", "whitelisted")
+			return true
+		end
+	end
 
-  --c.sendPlayerMessage("arc13", "not whitelisted")
-  return false
-end
-
-local function getTableDifference(oldTable, newTable)
-  if not newTable then
-    return false
-  end
-
-  local tDifference = {}
-
-  --[[
-
-  print("oldTable :")
-
-  for i = 1, #oldTable do
-    print(oldTable[i])
-  end
-
-  print("newTable :")
-
-  for i = 1, #newTable do
-    print(newTable[i])
-  end
-
-  print("Différences :")
-
-  --]]
-
-  for i = 1, #oldTable do
-    local isOK = false
-
-    local selectedTable = oldTable[i]
-    --print("J'ai "..selectedTable.." actuellement")
-
-    for i = 1, #newTable do
-      --print("Je compare "..selectedTable.." avec "..newTable[i])
-
-      if selectedTable == newTable[i] then
-        --print("OK")
-        isOK = true
-        break
-      end
-    end
-
-    if isOK == false then
-      --print(selectedTable.." n'est pas dans table2")
-      table.insert(tDifference, selectedTable)
-    end
-  end
-
-  return tDifference
+	--tChatPeripheral.tell("arc13", "not whitelisted")
+	return false
 end
 
 local function getInventorySize(tInventory)
-  local i = 0
+	local i = 0
 
-  for k, v in pairs(tInventory) do
-    i = i + 1
-  end
+	for k, v in pairs(tInventory) do
+		i = i + 1
+	end
 
-  return i
+	return i
 end
 
-local function getPlayers(range, x, y, z)
-  if not z then
-    return false
-  end
+local function getPlayers()
+	local playerList = {}
+	local f = tSensorPeripheral.getTargets()
 
-  local playerList = {}
-  local f = t.getEntityList(range, x, y, z)
+	for k, v in pairs(f) do
+		if v.IsPlayer then
+			table.insert(playerList, k)
+		end
+	end
 
-  for k, v in pairs(f) do
-    if v.type == "EntityPlayerMP" then
-      table.insert(playerList, v.name)
-    end
-  end
+	for i = 1, #playerList do
+		--print(playerList[i])
+	end
 
-  return playerList
+	return playerList
 end
 
-local function logJoin(sPlayerJoined)
-  if printLog then
-    print(sPlayerJoined.." join")
-  end
+function logJoin(sPlayerJoined)
+	if printLog then
+		if term.isColor() then
+			term.setTextColor(colors.lightGray)
+		end
 
-  local file = fs.open(sLogFile, "a")
+		local sFormattedPlayer = ""
 
-  file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerJoined.." join")
-  file.close()
+		if #tPlayers > 1 then
+			sFormattedPlayer = "players"
+		else
+			sFormattedPlayer = "player"
+		end
 
-  tInventoryPlayers[sPlayerJoined] = {inventory = {}}
-  tInventoryPlayers[sPlayerJoined]["inventorySize"] = getInventorySize(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory)
+		tActualDate = tTimePeripheral.getDate()
+		write("["..string.format("%02i", tActualDate.hour)..":"..string.format("%02i", tActualDate.minute)..", "..#tPlayers.." "..sFormattedPlayer.."] ")
+		term.setTextColor(colors.white)
+		print(sPlayerJoined.." join")
+	end
 
-  for k, v in pairs(t.getPlayerDetail(sPlayerJoined)[sPlayerJoined].inventory) do
-    table.insert(tInventoryPlayers[sPlayerJoined]["inventory"], v.displayName)
-  end
+	local sLogName = sLogFormat
+	sLogName = sLogName:gsub("#m", string.format("%02i", tActualDate.minute))
+	sLogName = sLogName:gsub("#h", string.format("%02i", tActualDate.hour))
+	sLogName = sLogName:gsub("#d", string.format("%02i", tActualDate.day))
+	sLogName = sLogName:gsub("#M", string.format("%02i", tActualDate.month))
+	sLogName = sLogName:gsub("#y", string.format("%02i", tActualDate.year))
 
-  if useChatInterface == true and chatInterfaceConnected == true then
-    for i = 1, #chatTo do
-      local sMsg = string.gsub(joinMessage, "#p", sPlayerJoined)
-      sMsg = sMsg:gsub("#M", date.formatDateTime("%M"))
-      sMsg = sMsg:gsub("#h", date.formatDateTime("%h"))
-      sMsg = sMsg:gsub("#d", date.formatDateTime("%d"))
-      sMsg = sMsg:gsub("#m", date.formatDateTime("%m"))
-      sMsg = sMsg:gsub("#y", date.formatDateTime("%y"))
-      c.sendPlayerMessage(chatTo[i], sMsg)
-    end
-  end
+	local file = fs.open(sLogDir..sLogName, fs.exists(sLogDir..sLogName) and "a" or "w")
+
+	file.writeLine("["..string.format("%02i", tActualDate.hour)..":"..string.format("%02i", tActualDate.minute).."] "..sPlayerJoined.." join")
+	file.close()
+
+	if useChatInterface == true and chatInterfaceConnected == true then
+		for i = 1, #chatTo do
+			local sMsg = string.gsub(joinMessage, "#p", sPlayerJoined)
+			sMsg = sMsg:gsub("#M", string.format("%02i", tActualDate.minute))
+			sMsg = sMsg:gsub("#h", string.format("%02i", tActualDate.hour))
+			sMsg = sMsg:gsub("#d", string.format("%02i", tActualDate.day))
+			sMsg = sMsg:gsub("#m", string.format("%02i", tActualDate.month))
+			sMsg = sMsg:gsub("#y", string.format("%02i", tActualDate.year))
+
+			if chatName == "" then
+				tChatPeripheral.tell(chatTo[i], sMsg)
+			else
+				tChatPeripheral.tell(chatTo[i], "["..chatName.."] "..sMsg)
+			end
+		end
+	end
 end
 
 local function logLeft(sPlayerLeft)
-  if printLog then
-    print(sPlayerLeft.." left")
-  end
+	if printLog then
+		if term.isColor() then
+			term.setTextColor(colors.lightGray)
+		end
 
-  local file = fs.open(sLogFile, "a")
+		local sFormattedPlayer = ""
 
-  file.writeLine("["..date.formatDateTime("%d/%m/%y %h:%M").."] "..sPlayerLeft.." left")
+		if #tPlayers > 1 then
+			sFormattedPlayer = "players"
+		else
+			sFormattedPlayer = "player"
+		end
 
-  if tInventoryPlayers[sPlayerLeft]["inventorySize"] ~= getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) then
-    print("Inventory has changed ! ("..getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory).." items now, "..tInventoryPlayers[sPlayerLeft]["inventorySize"].." before)")
+		tActualDate = tTimePeripheral.getDate()
+		write("["..string.format("%02i", tActualDate.hour)..":"..string.format("%02i", tActualDate.minute)..", "..#tPlayers.." "..sFormattedPlayer.."] ")
+		term.setTextColor(colors.white)
+		print(sPlayerLeft.." left")
+	end
 
-    local tCurrentInventory = {}
+	local sLogName = sLogFormat
+	sLogName = sLogName:gsub("#m", string.format("%02i", tActualDate.minute))
+	sLogName = sLogName:gsub("#h", string.format("%02i", tActualDate.hour))
+	sLogName = sLogName:gsub("#d", string.format("%02i", tActualDate.day))
+	sLogName = sLogName:gsub("#M", string.format("%02i", tActualDate.month))
+	sLogName = sLogName:gsub("#y", string.format("%02i", tActualDate.year))
 
-    for k, v in pairs(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) do
-      table.insert(tCurrentInventory, v.displayName)
-    end
+	local file = fs.open(sLogDir..sLogName, fs.exists(sLogDir..sLogName) and "a" or "w")
 
-    if getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) > tInventoryPlayers[sPlayerLeft]["inventorySize"] then
-      -- Un/plusieurs item(s) à/ont été(s) ajouté(s)
-      local tDifference = getTableDifference(tCurrentInventory, tInventoryPlayers[sPlayerLeft]["inventory"])
+	file.writeLine("["..string.format("%02i", tActualDate.hour)..":"..string.format("%02i", tActualDate.minute).."] "..sPlayerLeft.." left")
 
-      file.writeLine("Inventory has changed (+) : ")
+	file.close()
 
-      file.write("/")
+	if useChatInterface == true and chatInterfaceConnected == true then
+		for i = 1, #chatTo do
+			local sMsg = string.gsub(leftMessage, "#p", sPlayerLeft)
+			sMsg = sMsg:gsub("#M", string.format("%02i", tActualDate.minute))
+			sMsg = sMsg:gsub("#h", string.format("%02i", tActualDate.hour))
+			sMsg = sMsg:gsub("#d", string.format("%02i", tActualDate.day))
+			sMsg = sMsg:gsub("#m", string.format("%02i", tActualDate.month))
+			sMsg = sMsg:gsub("#y", string.format("%02i", tActualDate.year))
 
-      for i = 1, #tDifference do
-        file.write(tDifference[i].."/")
-      end
-
-      file.write("\n")
-    elseif getInventorySize(t.getPlayerDetail(sPlayerLeft)[sPlayerLeft].inventory) < tInventoryPlayers[sPlayerLeft]["inventorySize"] then
-      -- Un/plusieurs item(s) à/ont été(s) enlevée(s)
-      local tDifference = getTableDifference(tInventoryPlayers[sPlayerLeft]["inventory"], tCurrentInventory)
-
-      file.writeLine("Inventory has changed (-) : ")
-
-      file.write("/")
-
-      for i = 1, #tDifference do
-        file.write(tDifference[i].."/")
-      end
-
-      file.write("\n")
-    end
-  end
-
-  file.close()
-
-  if useChatInterface == true and chatInterfaceConnected == true then
-    for i = 1, #chatTo do
-      local sMsg = string.gsub(leftMessage, "#p", sPlayerLeft)
-      sMsg = sMsg:gsub("#M", date.formatDateTime("%M"))
-      sMsg = sMsg:gsub("#h", date.formatDateTime("%h"))
-      sMsg = sMsg:gsub("#d", date.formatDateTime("%d"))
-      sMsg = sMsg:gsub("#m", date.formatDateTime("%m"))
-      sMsg = sMsg:gsub("#y", date.formatDateTime("%y"))
-      c.sendPlayerMessage(chatTo[i], sMsg)
-    end
-  end
+			if chatName == "" then
+				tChatPeripheral.tell(chatTo[i], sMsg)
+			else
+				tChatPeripheral.tell(chatTo[i], "["..chatName.."] "..sMsg)
+			end
+		end
+	end
 end
 
 local function playerJoin(tPlayers, tOldPlayers)
-  local tDifference = getTableDifference(tPlayers, tOldPlayers)
+	local tDifference = getTableDifference(tPlayers, tOldPlayers)
 
-  if joinProgram ~= "" and multishell then
-    local sTempPlayers = ""
+	if joinProgram ~= "" and multishell then
+		local sTempPlayers = ""
 
-    for i = 1, #tDifference do
-      sTempPlayers = sTempPlayers..tDifference[i]..","
-    end
+		for i = 1, #tDifference do
+			sTempPlayers = sTempPlayers..tDifference[i]..","
+		end
 
-    shell.openTab(joinProgram.." "..sTempPlayers)
-  end
+		shell.openTab(joinProgram.." "..sTempPlayers)
+	end
 
-  for i = 1, #tDifference do
-    if not isInWhitelist(tDifference[i]) then
-      logJoin(tDifference[i])
-    else
-      if printLog then
-        print("Whitelisted : "..tDifference[i])
-      end
-    end
-  end
+	os.queueEvent("player_join", tDifference)
+
+	for i = 1, #tDifference do
+		if not isInWhitelist(tDifference[i]) then
+			logJoin(tDifference[i])
+
+			redrawHeader()
+		else
+			if printLog then
+				print("Whitelisted : "..tDifference[i])
+			end
+		end
+	end
 end
 
 local function playerLeft(tPlayers, tOldPlayers)
-  local tDifference = getTableDifference(tOldPlayers, tPlayers)
+	local tDifference = getTableDifference(tOldPlayers, tPlayers)
 
-  if leftProgram ~= "" and multishell then
-    local sTempPlayers = ""
+	if debugMode then
+		print("Differences:")
+		for i = 1, #tDifference do
+			print(tDifference[i])
+		end
+	end
 
-    for i = 1, #tDifference do
-      sTempPlayers = sTempPlayers..tDifference[i]..","
-    end
+	if leftProgram ~= "" and multishell then
+		local sTempPlayers = ""
 
-    shell.openTab(leftProgram.." "..sTempPlayers)
-  end
+		for i = 1, #tDifference do
+			sTempPlayers = sTempPlayers..tDifference[i]..","
+		end
 
-  for i = 1, #tDifference do
-    if not isInWhitelist(tDifference[i]) then
-      logLeft(tDifference[i])
-    else
-      if printLog then
-        print("Whitelisted : "..tDifference[i])
-      end
-    end
-  end
+		shell.openTab(leftProgram.." "..sTempPlayers)
+	end
+
+	os.queueEvent("player_left", tDifference)
+
+	for i = 1, #tDifference do
+		if not isInWhitelist(tDifference[i]) then
+			logLeft(tDifference[i])
+
+			redrawHeader()
+		else
+			if printLog then
+				print("Whitelisted : "..tDifference[i])
+			end
+		end
+	end
 end
 
 local function main()
-  while bRun do
-    tOldPlayers = tPlayers
-    tPlayers = getPlayers(nRange, nX, nY, nZ)
+	while bRun do
+		tOldPlayers = tPlayers
+		tPlayers = getPlayers()
 
-    if #tPlayers ~= #tOldPlayers then
-      if printLog then
-        print(#tPlayers.." players ("..#tOldPlayers.." before)")
-      end
-      if #tPlayers > #tOldPlayers then
-        os.queueEvent("player_join", tPlayers, tOldPlayers)
+		if debugMode then
+			print("tOldPlayers:")
+			for i = 1, #tOldPlayers do
+				print(tOldPlayers[i])
+			end
 
-        threadJoin = coroutine.create(playerJoin)
-        coroutine.resume(threadJoin, tPlayers, tOldPlayers)
-      elseif #tPlayers < #tOldPlayers then
-        os.queueEvent("player_left", tPlayers, tOldPlayers)
+			print("tPlayers:")
+			for i = 1, #tPlayers do
+				print(tPlayers[i])
+			end
 
-        threadLeft = coroutine.create(playerLeft)
-        coroutine.resume(threadLeft, tPlayers, tOldPlayers)
-      end
-    end
+			--sleep(5)
+		end
 
-    sleep(0.1)
-  end
+		if #tPlayers ~= #tOldPlayers then
+			if debugMode then
+				print("New player")
+			end
+			if #tPlayers > #tOldPlayers then
+				if debugMode then
+					print("Player joined")
+				end
+
+				threadJoin = coroutine.create(playerJoin)
+				coroutine.resume(threadJoin, tPlayers, tOldPlayers)
+			elseif #tPlayers < #tOldPlayers then
+				if debugMode then
+					print("Player left")
+				end
+
+				threadLeft = coroutine.create(playerLeft)
+				coroutine.resume(threadLeft, tPlayers, tOldPlayers)
+			end
+		else
+			if debugMode then
+				--print("No new player")
+			end
+		end
+
+		sleep(0.1)
+	end
 end
 
--- Unitilisable avant que les events soit fixés
+-- Les events de peripherals sont incompréhensibles
 local function peripheralHandler()
-  while bRun do
-    local sEvent, sSide = os.pullEvent()
+	while bRun do
+		redrawHeader()
 
-    if sEvent == "peripheral" or sEvent == "peripheral_detach" then
-      print(sSide)
-      print(pSide)
-      print(tSide)
-      print(cSide)
-    end
+		local sEvent, sSide = os.pullEvent()
 
-    if sEvent == "peripheral" then
-      if peripheral.getType(sSide) == "ChatInterface" then
-        chatInterfaceConnected = true
-        print("[SYSTEM] ChatInterface connected")
-        cSide = sSide
-      end
-    elseif sEvent == "peripheral_detach" then
-      if sSide == pSide then
-        -- Le world interface à été détaché
-        error("[SYSTEM] WorldInterface disconnected")
-      elseif sSide == tSide then
-        -- L'entity detector à été détaché
-        error("[SYSTEM] EntityDetector disconnected")
-      elseif sSide == cSide then
-        -- Le chat interface à été détaché
-        chatInterfaceConnected = false
-        cSide = ""
-        print("[SYSTEM] ChatInterface disconnected")
-      end
-    end
-  end
+		if sEvent == "peripheral" or sEvent == "peripheral_detach" then
+			print(sSide)
+			print(tTimeSide)
+			print(tSensorSide)
+			print(tChatSide)
+		end
+
+		if sEvent == "peripheral" then
+			if peripheral.getType(sSide) == "chatBox" then
+				chatInterfaceConnected = true
+				print("[SYSTEM] Chat Box connected")
+				tChatSide = sSide
+			end
+		elseif sEvent == "peripheral_detach" then
+			if sSide == tTimeSide then
+				-- Le timeSensor à été détaché
+				error("[SYSTEM] Time Sensor disconnected")
+			elseif sSide == tSensorSide then
+				-- Le sensor à été détaché
+				error("[SYSTEM] Proximity Sensor disconnected")
+			elseif sSide == tChatSide then
+				-- La Chat Box à été détaché
+				chatInterfaceConnected = false
+				tChatSide = ""
+				print("[SYSTEM] Chat Box disconnected")
+			end
+		end
+	end
 end
 
 local function chatHandler()
-  while bRun do
-    local sEvent, sPlayer, sMessage = os.pullEvent("chat_message")
+	while bRun do
+		local sEvent, sPlayer, sMessage = os.pullEvent("chat")
 
-    for i = 1, #canUseCommands do
-      if sPlayer == canUseCommands[i] then
-        if sMessage == "##disable_chat" then
-          useChatInterface = false
-          c.sendPlayerMessage(sPlayer, "Chat disabled !")
-        elseif sMessage == "##enable_chat" then
-          useChatInterface = true
-          c.sendPlayerMessage(sPlayer, "Chat enabled !")
-        elseif sMessage == "##stop" then
-          c.sendPlayerMessage(sPlayer, "Terminated")
-          os.pullEvent = oldPullEvent
-          bRun = false
-        elseif sMessage == "##get_players" then
-          local tPlayersToSend = getPlayers(nRange, nX, nY, nZ)
+		for i = 1, #canUseCommands do
+			if sPlayer == canUseCommands[i] then
+				if sMessage == "##disable_chat" then
+					useChatInterface = false
+					tChatPeripheral.tell(sPlayer, "Chat disabled !")
+				elseif sMessage == "##enable_chat" then
+					useChatInterface = true
+					tChatPeripheral.tell(sPlayer, "Chat enabled !")
+				elseif sMessage == "##stop" then
+					tChatPeripheral.tell(sPlayer, "Terminated")
+					os.pullEvent = oldPullEvent
+					bRun = false
+				elseif sMessage == "##get_players" then
+					local tPlayersToSend = getPlayers()
 
-          local sMsgToSend = ""
+					local sMsgToSend = ""
 
-          if #tPlayersToSend == 0 then
-            c.sendPlayerMessage(sPlayer, "No players detected")
-          elseif #tPlayersToSend == 1 then
-            c.sendPlayerMessage(sPlayer, "Player : "..tPlayersToSend[1])
-          else
-            for i = 1, #tPlayersToSend - 1 do
-              sMsgToSend = sMsgToSend..tPlayersToSend[i]..", "
-            end
+					if #tPlayersToSend == 0 then
+						tChatPeripheral.tell(sPlayer, "No players detected")
+					elseif #tPlayersToSend == 1 then
+						tChatPeripheral.tell(sPlayer, "Player : "..tPlayersToSend[1])
+					else
+						for i = 1, #tPlayersToSend - 1 do
+							sMsgToSend = sMsgToSend..tPlayersToSend[i]..", "
+						end
 
-            sMsgToSend = sMsgToSend..tPlayersToSend[#tPlayersToSend]
+						sMsgToSend = sMsgToSend..tPlayersToSend[#tPlayersToSend]
 
-            c.sendPlayerMessage(sPlayer, sMsgToSend)
-          end
-        end
-      end
-    end
-  end
+						tChatPeripheral.tell(sPlayer, sMsgToSend)
+					end
+				end
+			end
+		end
+	end
 end
 
-parallel.waitForAll(main, chatHandler)
+local function UIRefresh()
+	while bRun do
+		sleep(2)
+
+		redrawHeader()
+	end
+end
+
+local function resizeHandler()
+	while bRun do
+		event, side = os.pullEvent("monitor_resize")
+
+		oldMonX, oldMonY = monX, monY
+
+		monX, monY = term.getSize()
+
+		if monX ~= oldMonX or monY ~= oldMonY then
+			-- Resolution has changed, the program run on a monitor
+
+			if monX >= 29 then
+				redrawHeader()
+
+				if bScrollEffectDone == true then
+					term.setCursorPos(1, 3)
+				else
+					if monX >= 51 then
+						term.setCursorPos(1, 6)
+					elseif monX < 51 and monX >= 29 then
+						term.setCursorPos(1, 5)
+					end
+				end
+			else
+				term.setCursorPos(1, 1)
+				print("Resolution too low !")
+			end
+		end
+	end
+end
+
+local function getPlayerInventory(sPlayer)
+	return tSensorPeripheral.getTargetDetails(sPlayer).Inventory
+end
+
+local function inventoryUpdate()
+	while bRun do
+		local tPlayersInRange = getPlayers()
+
+		for i = 1, #tPlayersInRange do
+			local bSuccess, tTargetDetails = pcall(getPlayerInventory, tPlayersInRange[i])
+
+			if bSuccess then
+				if not tActualInventoryPlayers[tPlayersInRange[i]] then
+					tActualInventoryPlayers[tPlayersInRange[i]] = {inventory = {}}
+				end
+
+				local tActualInventory = {}
+
+				tActualInventoryPlayers[tPlayersInRange[i]]["inventorySize"] = getInventorySize(tTargetDetails)
+
+				for k, v in pairs(tTargetDetails) do
+					table.insert(tActualInventory, v.Name)
+				end
+
+				tActualInventoryPlayers[tPlayersInRange[i]]["inventory"] = tActualInventory
+			else
+				--print("error")
+			end
+		end
+
+		sleep(0.1)
+	end
+end
+
+local function inventoryHandler()
+	while bRun do
+		local invHandlerEvent, invHandlerPlayer = os.pullEvent()
+
+		if invHandlerEvent == "player_join" then
+			for i = 1, #invHandlerPlayer do
+				local bSuccess, tTargetDetails = pcall(getPlayerInventory, invHandlerPlayer[i])
+
+				if bSuccess then
+					if not tInventoryPlayers[invHandlerPlayer[i]] then
+						tInventoryPlayers[invHandlerPlayer[i]] = {inventory = {}}
+					end
+
+					local tActualInventory = {}
+
+					tInventoryPlayers[invHandlerPlayer[i]]["inventorySize"] = getInventorySize(tTargetDetails)
+
+					for k, v in pairs(tTargetDetails) do
+						table.insert(tActualInventory, v.Name)
+					end
+
+					tInventoryPlayers[invHandlerPlayer[i]]["inventory"] = tActualInventory
+				else
+					--print("error")
+				end
+			end
+		elseif invHandlerEvent == "player_left" then
+	    for i = 1, #invHandlerPlayer do
+				if not isInWhitelist(invHandlerPlayer[i]) then
+					local sLogName = sLogFormat
+					sLogName = sLogName:gsub("#m", string.format("%02i", tActualDate.minute))
+					sLogName = sLogName:gsub("#h", string.format("%02i", tActualDate.hour))
+					sLogName = sLogName:gsub("#d", string.format("%02i", tActualDate.day))
+					sLogName = sLogName:gsub("#M", string.format("%02i", tActualDate.month))
+					sLogName = sLogName:gsub("#y", string.format("%02i", tActualDate.year))
+
+					local file = fs.open(sLogDir..sLogName, fs.exists(sLogDir..sLogName) and "a" or "w")
+
+					local tCurrentInventory = {}
+
+					for k, v in pairs(tActualInventoryPlayers[invHandlerPlayer[i]]["inventory"]) do
+						table.insert(tCurrentInventory, v.displayName)
+					end
+
+					local tInvDifferencePlus = getTableDifference(tActualInventoryPlayers[invHandlerPlayer[i]]["inventory"], tInventoryPlayers[invHandlerPlayer[i]]["inventory"])
+					local tInvDifferenceMinus = getTableDifference(tInventoryPlayers[invHandlerPlayer[i]]["inventory"], tActualInventoryPlayers[invHandlerPlayer[i]]["inventory"])
+
+					if #tInvDifferencePlus > 0 or #tInvDifferenceMinus > 0 then
+						print("Inventory has changed ! ("..tActualInventoryPlayers[invHandlerPlayer[i]]["inventorySize"].." items now, "..tInventoryPlayers[invHandlerPlayer[i]]["inventorySize"].." before)")
+					end
+
+					if #tInvDifferencePlus > 0 then
+						-- Un/plusieurs item(s) à/ont été(s) ajouté(s)
+
+						os.queueEvent("inventory_add", invHandlerPlayer[i], tInvDifferencePlus)
+
+						file.writeLine("Inventory has changed (+) : ")
+
+						file.write("/")
+
+						for i = 1, #tInvDifferencePlus do
+							file.write(tInvDifferencePlus[i].."/")
+							if debugMode then
+								print(tInvDifferencePlus[i])
+							end
+						end
+
+						file.write("\n")
+					end
+
+					if #tInvDifferenceMinus > 0 then
+						-- Un/plusieurs item(s) à/ont été(s) enlevée(s)
+
+						os.queueEvent("inventory_remove", invHandlerPlayer[i], tInvDifferenceMinus)
+
+						file.writeLine("Inventory has changed (-) : ")
+
+						file.write("/")
+
+						for i = 1, #tInvDifferenceMinus do
+							file.write(tInvDifferenceMinus[i].."/")
+							if debugMode then
+								print(tInvDifferenceMinus[i])
+							end
+						end
+
+						file.write("\n")
+					end
+
+					file.close()
+				end
+			end
+		end
+	end
+end
+
+parallel.waitForAll(main, chatHandler, scrollEffect, UIRefresh, resizeHandler, inventoryUpdate, inventoryHandler)
